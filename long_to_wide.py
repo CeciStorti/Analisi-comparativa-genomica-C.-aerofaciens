@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Leggi il file .tsv
-df = pd.read_csv('/home/cstorti/qLS/Collinsella/collinsella_filtered/biosample_info.tsv', sep='\t')
+df = pd.read_csv('biosample_info.tsv', sep='\t')
 
 # Trasforma il formato long in wide
 df_wide = df.pivot(index=['Assembly Accession','Assembly BioSample Accession'], 
