@@ -4,7 +4,7 @@ import pandas as pd
 import pandas as pd
 
 
-blast_results = pd.read_csv("/home/biouserc/ADH_blast/ref_C_a_4/risultati_blast_ref_C_a_4.txt", sep="\t", header=None)
+blast_results = pd.read_csv("risultati_blast_ref_C_a_4.txt", sep="\t", header=None)
 
 # Aggiungi nomi alle colonne per semplicità (puoi cambiarli in base al tuo file)
 blast_results.columns = ["query_id", "subject_id", "pident", "length", "mismatch", 
