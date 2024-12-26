@@ -206,13 +206,13 @@ for file in "16s"/*.fasta; do
     rm tmp/tmp_16s.fasta
 done
 
-output_file="16s/16s_file_tot.fasta"
+output_file="16s/16_TOTALE.fasta"
 for file in "selected_16s"/*.fasta;do
     base=$(basename "$file" .fasta | cut -d'_' -f1-2)
     sed "s/^>.*$/>$base/" "$file" >> "$output_file"
 done 
 
-clustalo --infile /home/biouserc/16_TOTALE.fasta --guidetree-out clustalo-prova_auto.dnd --distmat-out prova_clust_auto.matrix --full --outfmt clustal --auto --outfile aln_clustal_auto
+clustalo --infile 16s/16_TOTALE.fasta --guidetree-out clustalo-prova_auto.dnd --distmat-out prova_clust_auto.matrix --full --outfmt clustal --auto --outfile aln_clustal_auto
 
 ########################
 # Step 9: ADH Analysis #
@@ -232,7 +232,7 @@ blastp -query ADH_protein.faa -db db_blast_protein -out risultati_blast.txt -out
 
 python filter_results_blast.py
 
-cut -d $'\t' -f2,3 "filtered_blast_results_ref_C_a_4.tsv" > tmp_2.txt
+cut -d $'\t' -f 2,3 "filtered_blast_results_ref_C_a_4.tsv" > tmp_2.txt
 
 python ADH_to_csv.python
 
