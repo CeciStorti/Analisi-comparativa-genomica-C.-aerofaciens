@@ -1,0 +1,313 @@
+rule all:
+     input:
+        "NG-32946_1_fastqc.html","NG-32946_1_fastqc.zip","NG-32946_2_fastqc.html","NG-32946_2_fastqc.zip","NG-32946.unmatch_1.fastq","NG-32946.unmatch_2.fastq",
+        "ref_index/reference_index.1.bt2","ref_index/reference_index.2.bt2","ref_index/reference_index.3.bt2","ref_index/reference_index.4.bt2","ref_index/reference_index.rev.1.bt2",
+        "ref_index/reference_index.rev.2.bt2","allineamenti_bowtie2-NG-32946.sam","NG-32946.removed_hum_1.fastq","NG-32946.removed_hum_2.fastq",
+        "NG-32946.dedupe.fa","NG-32946.duplicates.fa","NG-32946.dedupe_1.fastq","NG-32946.dedupe_2.fastq",
+        "NG-32946_profile.txt","NG-32946-metagenome.bowtie2.bz2","check-NG-32946.txt","contaminant_genomes-NG-32946","principal_genome-NG-32946","contaminanti-NG-32946.fasta",
+        "NG-32946_clean.fastq","NG-32946_contaminated.fastq","NG-32946.clean_1.fastq","NG-32946.clean_2.fastq",
+        "spades_results_NG-32946.scaffolds.fasta","path-NG-32946.txt","quast-NG-32946/report.html","busco-results_summary-NG-32946.txt","katcomp-NG-32946-main.mx.spectra-cn.png"
+
+rule fastqc:
+    input:
+        "{sample}.fastq"
+    output:
+        html="{sample}_fastqc.html",
+        zipf="{sample}_fastqc.zip",
+    log:
+        "fastqc-{sample}.log"
+    shell:
+         """
+         fastqc {input} &> {log}
+         """
+
+rule bbduk:
+     input:
+         r1="{sample}_1.fastq",
+         r2="{sample}_2.fastq"
+     output:
+         out1="{sample}.unmatch_1.fastq",
+         out2="{sample}.unmatch_2.fastq"
+     params:
+         outm1="{sample}.match_1.fastq",
+         outm2="{sample}.match_2.fastq",
+         adapters="/home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/resources/adapters.fa",
+         ftm=5,
+         ktrim="r",
+         k=23,
+         mink=11
+     shell: 
+         """
+         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/bbduk.sh in1={input.r1} in2={input.r2} outm1={params.outm1} out1={output.out1} outm2={params.outm2} out2={output.out2} \
+         ref={params.adapters}  ftm={params.ftm} ktrim={params.ktrim} k={params.k} mink={params.mink} tpe
+         """
+
+rule bowtie2_index:
+    input:
+         r1="human_genome.fna.gz"
+    output:
+        output1="ref_index/reference_index.1.bt2",
+        output2="ref_index/reference_index.2.bt2",
+        output3="ref_index/reference_index.3.bt2",
+        output4="ref_index/reference_index.4.bt2",
+        outputrev1="ref_index/reference_index.rev.1.bt2",
+        outputrev2="ref_index/reference_index.rev.2.bt2"
+    params:
+        prefix="ref_index/reference_index"
+    log:
+        "logs/bowtie2_build_index.log"
+    shell:
+         """
+         bowtie2-build {input.r1} {params.prefix} &> {log}
+         """
+
+
+rule bowtie2:
+    input:
+        index1=expand("ref_index/{name}.{index}.bt2", index=range(1,5),name=r"reference_index"),
+        index2=expand("ref_index/{name}.rev.{index}.bt2", index=range(1,3),name="reference_index"),
+        r1="{sample}.unmatch_1.fastq",
+        r2="{sample}.unmatch_2.fastq"
+    output:
+        out="allineamenti_bowtie2-{sample}.sam"
+    params:
+        prefix="ref_index/reference_index"
+    log:
+        "bowtie2_align-{sample}.log"
+    shell:
+        """
+        bowtie2 -x {params.prefix} -1 {input.r1} -2 {input.r2} -S {output.out} &> {log}
+        """
+
+
+rule remove_human:
+     input:
+         r1="allineamenti_bowtie2-{sample}.sam"
+     output: 
+        out="human_unmapped_{sample}.fastq"
+     params:
+         param1="alligned.bam",
+         param2="alligned_sorted.bam"
+     shell: 
+       """
+       samtools view -bS  {input.r1} > {params.param1}
+       samtools sort {params.param1} -o {params.param2}
+       samtools index {params.param2}
+       samtools fastq -f 4 {params.param2} > {output.out} 
+       """
+
+rule reformat_human:
+    input:
+       r="human_unmapped_{sample}.fastq"
+    output:
+       out1="{sample}.removed_hum_1.fastq",
+       out2="{sample}.removed_hum_2.fastq"
+    shell:
+         """
+         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
+         """
+
+rule dedupe:
+    input: 
+        r1="{sample}.removed_hum_1.fastq",
+        r2="{sample}.removed_hum_2.fastq"
+    output:
+        out1="{sample}.dedupe.fa",
+        out2="{sample}.duplicates.fa"
+    shell:
+        """
+        /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/dedupe.sh in={input.r1},{input.r2} out={output.out1} outd={output.out2} ac=f
+        """
+
+rule reformat_dedupe:
+    input:
+        r="{sample}.dedupe.fa"
+    output:
+        out1="{sample}.dedupe_1.fastq",
+        out2="{sample}.dedupe_2.fastq"
+    shell:
+         """
+         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
+         """
+
+
+rule metaphlan:
+    input:
+        r1="{sample}.removed_hum_1.fastq",
+        r2="{sample}.removed_hum_2.fastq"
+    output:
+        out1="{sample}_profile.txt",
+        out2="{sample}-metagenome.bowtie2.bz2"
+    conda: 
+        "metaphlan"
+    shell:
+         """
+         metaphlan {input.r1},{input.r2} --bowtie2out {output.out2} --input_type fastq -o {output.out1}
+         """
+
+rule check_metaphlan:
+    input:
+        r="{sample}_profile.txt"
+    output:
+        "check-{sample}.txt"
+    shell:
+         """
+         grep s__ {input.r} | grep -v t__ | cut  -f1,3 | sed "s/.*|//g" > {output}
+         """
+
+
+rule download_contaminat_genome:
+    input:
+         "check-{sample}.txt"
+    output:
+         directory("contaminant_genomes-{sample}")
+    params:
+         "tmp_species.txt"
+    shell:
+         """
+         mkdir -p {output}
+         awk '$3 < 85 {{print $1, $2}}' {input} > {params}
+         sed -i 's/Weizmannia /Heyndrickxia /g' {params}
+         while read species; do
+             ncbi-genome-download --formats fasta --refseq-categories representative  --genera "$species" bacteria --output-folder {output}
+         done < {params}
+         """
+
+rule download_reference_genome:
+    input:
+         "check-{sample}.txt"
+    output:
+         directory("principal_genome-{sample}")
+    params:
+         "tmp_reference.txt"
+    shell:
+         """
+         mkdir -p {output}
+         awk '$3 > 85 {{print $1, $2}}' {input} > {params}
+         sed -i 's/Weizmannia /Heyndrickxia /g' {params}
+         while read species; do
+             ncbi-genome-download --formats fasta --refseq-categories representative  --genera "$species" bacteria --output-folder {output}
+         done < {params}
+         """
+
+rule concatenate_contaminants:
+    input: 
+         "contaminant_genomes-{sample}"
+    output: 
+         "contaminanti-{sample}.fasta"
+    params:
+         "names_contaminat.txt"
+    shell:
+         """
+         find {input} -name '*.fna.gz' > {params}
+         zcat $(< {params}) > {output}
+         """
+
+
+rule bbmap:
+    input:
+         r1="{sample}.removed_hum_1.fastq",
+         r2="{sample}.removed_hum_2.fastq",
+         ref="contaminanti-{sample}.fasta"
+    output:
+         out1="{sample}_clean.fastq",
+         out2="{sample}_contaminated.fastq"
+    log:
+         "{sample}-bbmap.log"
+    shell:
+         """
+         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/bbmap.sh in1={input.r1} in2={input.r2} ref={input.ref} outu={output.out1} outm={output.out2} &> {log}
+         """
+
+rule reformat:
+    input:
+         r="{sample}_clean.fastq"
+    output:
+         out1="{sample}.clean_1.fastq",
+         out2="{sample}.clean_2.fastq"
+    shell:
+         """
+         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
+         """
+
+rule spades:
+    input:
+         r1="{sample}.clean_1.fastq",
+         r2="{sample}.clean_2.fastq"
+    output:
+         out="spades_results_{sample}.scaffolds.fasta"
+    log:
+         "spades-{sample}.log"
+    threads:
+         60
+    shell: 
+         """
+         spades.py -1 {input.r1} -2 {input.r2} -t {threads} --only-assembler --isolate -o tmp_spades_{wildcards.sample} &> {log} 
+         mv tmp_spades_{wildcards.sample}/scaffolds.fasta {output.out}
+         cat tmp_spades_{wildcards.sample}/spades.log >> {log}
+         rm -rf tmp_spades__{wildcards.sample}/
+         """
+
+rule reference_file_path:
+    input:
+         "principal_genome-{sample}"
+    output:
+         "path-{sample}.txt"
+    shell:
+         """
+         find {input} -type f -name '*.fna.gz' > {output}
+         """
+
+rule quast:
+    input:
+         assemblies= "spades_results_{sample}.scaffolds.fasta",
+         reference="path-{sample}.txt",
+         r1="{sample}.clean_1.fastq",
+         r2="{sample}.clean_2.fastq"
+    output:
+         "quast-{sample}/report.html"
+    conda:
+         "evaluation"
+    log:
+         "quast-{sample}.log"
+    threads:
+         60
+    conda:
+        "evaluation"
+    shell:
+         """
+         quast -o quast-{wildcards.sample} -r "$(cat {input.reference})" --pe1 {input.r1} --pe2 {input.r2} {input.assemblies} &> {log}
+         """
+
+rule busco:
+    input:
+         asm="spades_results_{sample}.scaffolds.fasta"
+    output:
+         "busco-results_summary-{sample}.txt"
+    log:
+         "busco-{sample}.log"
+    threads:
+         60
+    conda:
+         "evaluation"
+    shell: 
+         """
+         busco --in {input.asm} -o busco-{wildcards.sample} --cpu {threads} -m genome --auto-lineage-prok &> {log}
+         cp busco-{wildcards.sample}/short_summary*.txt {output}
+         """
+
+
+rule kat_comp:
+    input: 
+         reads=["{sample}.clean_1.fastq","{sample}.clean_2.fastq"],
+         asm="spades_results_{sample}.scaffolds.fasta"
+    output:
+         "katcomp-{sample}-main.mx.spectra-cn.png"
+    log:
+         "katcomp-{sample}.log"
+    threads:
+          60
+    conda:
+         "kat2"
+    shell: 
+         "kat comp -t {threads} -o katcomp-{wildcards.sample} '{input.reads}' {inpu.asm} &> {log}"
