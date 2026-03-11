@@ -65,9 +65,13 @@ echo "Il numero di file contenuti nella cartella è: $file_count"
 # STEP 3: PyANI #
 #################
 
+# Calcoliamo l'Average Nucleotide identity tramite il tool PyANI. In questo caso due genomi appartengono alla stessa
+# specie se ANI>= 95%
 average_nucleotide_identity.py -i genomi_checkm -o out_pyani -m ANIm --write_excel -l logfile_pyani.log -g --gformat png
 
+# Calcolo della Percentage of conserved protein. Due genomi appartengono alla stessa specie se la loro POCP>50%.
 
+./POCP.sh
 
 
 #########################################################################
