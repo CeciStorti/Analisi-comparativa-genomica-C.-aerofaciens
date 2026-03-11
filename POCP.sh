@@ -52,23 +52,28 @@ for ((i=0; i<${#genomes[@]}; i++)); do
         makeblastdb -in genes_A.faa_HH -dbtype prot -parse_seqids 1>/dev/null
         makeblastdb -in genes_B.faa_HH -dbtype prot -parse_seqids 1>/dev/null
 
-        # Get total gene count.
+        # Conteggio totale dei geni
         grep -c '>' genes_A.faa_HH > count_T1_HH
         grep -c '>' genes_B.faa_HH > count_T2_HH
 
-        # BLAST genes.
+        # Esecuzione di BLASTP: confronto delle proteine del genoma A con quelle del genoma B e viceversa
         blastp -query genes_A.faa_HH -db genes_B.faa_HH -outfmt "6 std qlen" -out BLAST_A_against_B_HH -num_threads "$num_threads" -max_target_seqs 1 
         blastp -query genes_B.faa_HH -db genes_A.faa_HH -outfmt "6 std qlen" -out BLAST_B_against_A_HH -num_threads "$num_threads" -max_target_seqs 1 
 
-        # Make sure each gene has only one hit.
+        # Seleziona le corrispondenze più alte per ciascun gene nei risultati di BLAST
         awk '{i=$1;if(i!=j){print};j=$1}' BLAST_A_against_B_HH > BLAST_A_against_B_top_hit_HH
         awk '{i=$1;if(i!=j){print};j=$1}' BLAST_B_against_A_HH > BLAST_B_against_A_top_hit_HH
 
-        # Count genes above the cut-offs: identity = 40%; e-value = 1e-05; length of query = 50%
+        # Filtra le corrispondenze considerando la percentuale di identità e coverage allineamento:
         awk '$3>=40 && $4/$13>=.5 && $11<1e-05' BLAST_A_against_B_top_hit_HH | wc -l > count_C1_HH
         awk '$3>=40 && $4/$13>=.5 && $11<1e-05' BLAST_B_against_A_top_hit_HH | wc -l > count_C2_HH
 
-        # Calculate POCP value.
+        # Calcolo della POCP: 
+        # Definita come: POCP = (C1 + C2) / (T1 + T2) * 100, dove:
+        # C1 = geni di A trovati in B
+        # C2 = geni di B trovati in A
+        # T1 = numero totale di geni in A
+        # T2 = numero totale di geni in B
         pcop=$(awk 'BEGIN{print ('`cat count_C1_HH`'+'`cat count_C2_HH`')/('`cat count_T1_HH`'+'`cat count_T2_HH`')*100}')
         echo -n -e "$pcop\t" >> "$matrix_file"
 
@@ -82,9 +87,6 @@ for ((i=0; i<${#genomes[@]}; i++)); do
     echo "" >> "$matrix_file"
 done
 
-
-# Generazione del file triangolare_sup.csv
-# (Il tuo codice che genera il file...)
 
 # Creazione della matrice simmetrica usando Python
 python3 << EOF
