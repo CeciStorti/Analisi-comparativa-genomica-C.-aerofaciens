@@ -252,13 +252,15 @@ output_dir="cazyme"
 
 
 for file in "$input_dir"/*.fasta; do
-    # Estrai il nome del file senza estensione
     filename=$(basename "$file" .fasta)
     run_dbcan "$file" prok --out_dir "$output_dir/${filename}" --verbose --dbcan_thread 4
 done
 
 mkdir -p overview
-mkdir -p dbcan
+
+for dir in cazyme/*; do
+    cp "$dir/overview.txt" overview/annotations_$(basename $dir).txt
+done
 
 python cazyme_dendrogramma.py 
 
