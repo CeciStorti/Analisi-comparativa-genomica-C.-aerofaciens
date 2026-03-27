@@ -227,14 +227,14 @@ jq -r '.accession' collinsella_summary.jsonl > GCF.txt
 mkdir -p PROTEINE
 
 # Download protein FASTA files for the selected genomes
-ncbi-genome-download --assembly-accessions GCF.txt bacteria --formats protein-fasta --flat-output --output-folder PROTEINE -v
+ncbi-genome-download --assembly-accessions GCF.txt bacteria --formats protein-fasta --flat-output --output-folder PROTEINS -v
 
 # Merge all protein sequences into a single FASTA and create a BLAST database
-cat PROTEINE/*.faa > sequenze_proteine_totali.fasta
-makeblastdb -in sequenze_proteine_totali.fasta -dbtype prot -out db_blast_protein
+cat PROTEINS/*.faa > total_protein_sequences.fasta
+makeblastdb -in total_protein_sequences.fasta -dbtype prot -out db_blast_protein
 
 # Run BLASTp using ADH protein as query
-blastp -query ADH_protein.faa -db db_blast_protein -out risultati_blast.txt -outfmt 6
+blastp -query ADH_protein.faa -db db_blast_protein -out blast_results.txt -outfmt 6
 
 # Filter BLAST results using custom Python script
 python filter_results_blast.py
