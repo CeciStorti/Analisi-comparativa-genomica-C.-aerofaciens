@@ -31,14 +31,14 @@ rule bbduk:
      params:
          outm1="{sample}.match_1.fastq",
          outm2="{sample}.match_2.fastq",
-         adapters="/home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/resources/adapters.fa",
+         adapters="WZ-coagulans/bbduk/bbmap/resources/adapters.fa",
          ftm=5,
          ktrim="r",
          k=23,
          mink=11
      shell: 
          """
-         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/bbduk.sh in1={input.r1} in2={input.r2} outm1={params.outm1} out1={output.out1} outm2={params.outm2} out2={output.out2} \
+         WZ-coagulans/bbduk/bbmap/bbduk.sh in1={input.r1} in2={input.r2} outm1={params.outm1} out1={output.out1} outm2={params.outm2} out2={output.out2} \
          ref={params.adapters}  ftm={params.ftm} ktrim={params.ktrim} k={params.k} mink={params.mink} tpe
          """
 
@@ -104,7 +104,7 @@ rule reformat_human:
        out2="{sample}.removed_hum_2.fastq"
     shell:
          """
-         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
+         WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
          """
 
 rule dedupe:
@@ -116,7 +116,7 @@ rule dedupe:
         out2="{sample}.duplicates.fa"
     shell:
         """
-        /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/dedupe.sh in={input.r1},{input.r2} out={output.out1} outd={output.out2} ac=f
+        WZ-coagulans/bbduk/bbmap/dedupe.sh in={input.r1},{input.r2} out={output.out1} outd={output.out2} ac=f
         """
 
 rule reformat_dedupe:
@@ -127,7 +127,7 @@ rule reformat_dedupe:
         out2="{sample}.dedupe_2.fastq"
     shell:
          """
-         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
+         WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
          """
 
 
@@ -216,7 +216,7 @@ rule bbmap:
          "{sample}-bbmap.log"
     shell:
          """
-         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/bbmap.sh in1={input.r1} in2={input.r2} ref={input.ref} outu={output.out1} outm={output.out2} &> {log}
+         WZ-coagulans/bbduk/bbmap/bbmap.sh in1={input.r1} in2={input.r2} ref={input.ref} outu={output.out1} outm={output.out2} &> {log}
          """
 
 rule reformat:
@@ -227,7 +227,7 @@ rule reformat:
          out2="{sample}.clean_2.fastq"
     shell:
          """
-         /home/cstorti/qLS/WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
+         WZ-coagulans/bbduk/bbmap/reformat.sh in={input.r} out1={output.out1} out2={output.out2}
          """
 
 rule spades:
