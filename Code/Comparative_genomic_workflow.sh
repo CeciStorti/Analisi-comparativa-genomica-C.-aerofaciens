@@ -239,22 +239,20 @@ blastp -query ADH_protein.faa -db db_blast_protein -out blast_results.txt -outfm
 # Filter BLAST results using custom Python script
 python filter_results_blast.py
 
-# Select columns 2 and 3 from filtered results
-cut -d $'\t' -f 2,3 "filtered_blast_results_ref_C_a_4.tsv" > tmp_2.txt
-
 # Convert filtered results to CSV using custom Python script
 python ADH_to_csv.py
 
 ####################
 # STEP 10: CAZYmes #
 ####################
+# Identify and analyze carbohydrate-active enzymes (CAZymes) in the genomes.
+# This step detects the enzymatic repertoire related to carbohydrate metabolism for each genome,
+# summarizes the results, and generates a dendrogram to compare CAZyme profiles across genomes.
 
-
-input_dir="genomi_checkm"
+input_dir="checkm_genomes"
 
 mkdir -p cazyme
 output_dir="cazyme"
-
 
 for file in "$input_dir"/*.fasta; do
     filename=$(basename "$file" .fasta)
@@ -297,12 +295,12 @@ head -n 1 abricate_results/results_resfinder.csv > abricate_results/filtered_res
 awk -F, '{if (NR >1 && $10 > 80 && $11 > 75) print }' abricate_results/results_resfinder.csv >> abricate_results/filtered_resfinder.csv
 abricate --summary --csv abricate_results/filtered_resfinder.csv > abricate_results/summary_results_resfinder.csv
 
-# FATTORI DI VIRULENZA
+# VIRULENCE FACTOR
 
 abricate --db vfdb --csv genomi_checkm/*.fasta > abricate_results/results_vfdb.csv
 abricate --summary --csv abricate_results/results_vfdb.csv > abricate_results/summary_vfdb.csv
 
-# PLASMIDI
+# PLASMID
 
 abricate --db plasmidfinder --csv genomi_checkm/*.fasta > abricate_results/results_plasmid.csv
 abricate --summary --csv abricate_results/results_plasmid.csv > abricate_results/summary_plasmid.csv
