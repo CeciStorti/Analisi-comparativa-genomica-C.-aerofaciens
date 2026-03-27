@@ -12,8 +12,7 @@ def create_presence_absence_matrix(input_file, output_file):
     matrix = result.pivot(index="genome_id", columns="query_id", values="presence")
 
     matrix = matrix.fillna(0)
-
-    # 👉 salva in formato Excel
+    
     matrix.to_excel(output_file)
 
     print(f"Matrix saved in {output_file}")
