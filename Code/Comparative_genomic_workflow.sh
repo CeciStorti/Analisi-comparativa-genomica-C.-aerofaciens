@@ -2,243 +2,248 @@
 
 
 ###############################
-# STEP 1: Download dei genomi #
+# STEP 1: Genomes download    #
 ###############################
 
-# Il seguente codice permette di ottenere gli accession number dei genomi disponibili su Genome,
-# esclusi gli atypical e i metagenomi
+# The following code allows you to obtain the accession numbers of genomes available on Genome,
+# excluding atypical ones and metagenomes.
 
 datasets summary genome taxon "Collinsella aerofaciens" --assembly-source genbank --exclude-atypical --mag exclude --as-json-lines > collinsella_summary.jsonl
 cat collinsella_summary.jsonl | jq '.accession' > accession_numbers.txt
 sed 's/"//g' accession_numbers.txt > final_accession_numbers.txt 
 rm accession_numbers.txt
 
-# Utilizziamo gli accession number appena ottenuti per scaricare i genomi
+# We use the accession numbers just obtained to download the genomes
 
-ncbi-genome-download --assembly-accessions final_accession_numbers.txt bacteria --section genbank --formats fasta --flat-output --output-folder genomi
+ncbi-genome-download --assembly-accessions final_accession_numbers.txt bacteria --section genbank --formats fasta --flat-output --output-folder genomes
 
-# I genomi scaricati sono salvati nella cartella genomi
+# The downloaded genomes are saved in the ‘genomes’ folder.
 
-# check:Contiamo quanti file contiene la cartella 
+# Check: let’s count how many files the folder contains. 
 
-file_count=$(find genomi -type f | wc -l )
-echo "Il numero di file contenuti nella cartella è: $file_count"
+file_count=$(find genomes -type f | wc -l )
+echo "The number of files contained in the folder is: $file_count"
 
 
 ##################
 # STEP 2: CHECKM #
 ##################
 
+# We evaluate the quality of the genomes just downloaded using the CheckM tool.
 
+checkm lineage_wf -t 50 -x fna genomes  results_checkm 
 
-# Valutiamo la qualità dei genomi appena scaricati, utilizzando il tool CheckM.
+# We analyze the extended_qa_summary.tsv file obtained as output from running CheckM.
+# The file contains the main statistics for each analyzed genome, reporting contamination and completeness values.
+# We look for the assembly accessions of genomes with:
 
-checkm lineage_wf -t 50 -x fna genomi  results_checkm 
+# - completeness < 90
+# - contamination > 5
+# Once identified, we will proceed with their removal.
 
-# Analizziamo il file extended_qa_summary.tsv ottenuto in output eseguendo CheckM.
-# Il file contiene le pricinipali statistiche per ciascun genoma analizzato, riporta il 
-# valore di contaminazione e completezza. 
-# Cerchiamo gli assembly accession dei genomi con:
-# - completezza < 90
-# - contaminazione > 5 
-# Una volta individuati, procederemo alla loro rimozione.
+# We look into the names of the columns 
+awk -F'\t' '{for(i=1; i<=NF; i++) print i, $i}' extended_qa_summary.tsv | head -n 10 
 
-awk -F'\t' '{for(i=1; i<=NF; i++) print i, $i}' extended_qa_summary.tsv | head -n 10 # trovo i numeri delle colonne
-# Selezioniamo le colonne relative alla completezza e alla contaminazione:
-awk -F'\t' 'NR>1 && ($6 <90 || $7 >5) {print $1}' extended_qa_summary.tsv > accession_da_rimuovere.txt
-# copia i genomi contenuti nella prima cartella, nella seconda.
-mkdir -p genomi_checkm
-cp -r genomi genomi_checkm 
-# Rimuoviamo i genomi non completi o contaminati:
+# We select the columns related to completeness and contamination:
+awk -F'\t' 'NR>1 && ($6 <90 || $7 >5) {print $1}' extended_qa_summary.tsv > accession_to_remove.txt
+mkdir -p checkm_genomes
+cp -r genomes checkm_genomes 
+
+# Remove low-quality genomes:
 while IFS= read -r file; do
-    rm "genomi_checkm/$file.fna"
-done < accession_da_rimuovere.txt
+    rm "checkm_genomes/$file.fna"
+done < accession_to_remove.txt
 
-# Check: contiamo quanti file contiene la cartella 
-file_count=$(find genomi_checkm -type f | wc -l )
-echo "Il numero di file contenuti nella cartella è: $file_count"
-
-
+# Check: let’s count how many files the folder contains. 
+file_count=$(find checkm_genomes -type f | wc -l )
+echo "The number of files contained in the folder is: $file_count"
 
 
 #################
 # STEP 3: PyANI #
 #################
 
-# Calcoliamo l'Average Nucleotide identity tramite il tool PyANI. In questo caso due genomi appartengono alla stessa
-# specie se ANI>= 95%
-average_nucleotide_identity.py -i genomi_checkm -o out_pyani -m ANIm --write_excel -l logfile_pyani.log -g --gformat png
+# We calculate the Average Nucleotide Identity (ANI) using the PyANI tool. In this case, two genomes belong to the same species if ANI ≥ 95%.
+average_nucleotide_identity.py -i checkm_genomes -o out_pyani -m ANIm --write_excel -l logfile_pyani.log -g --gformat png
 
-# Calcolo della Percentage of conserved protein. Due genomi appartengono alla stessa specie se la loro POCP>50%.
-
+# Calculation of the Percentage of Conserved Proteins (POCP). Two genomes belong to the same species if their POCP is > 50%.
+# For this, we run the dedicated script 
 ./POCP.sh
 
 
 #########################################################################
-# STEP 4: Otteniamo i metadati e le statistiche descrittive d'interesse #
+# STEP 4: Obtain metadata and descriptive statistics of interest        #
 #########################################################################
 
+# After the cleaning phase, we can download the associated metadata. 
+# We are interested in obtaining information about the host from which the sample was collected, 
+# the geographic area, etc. 
+# We query the NCBI Biosample database.
 
-
-# Conclusa la fase di pulizia, possiamo scaricare i metadati associati. Siamo interessati ad ottenere informazioni 
-# sull'host da cui è stato prelevato il campione, l'aerea geografica, ecc. 
-# Interroghiamo il database Biosample di NCBI.
-
-# Creiamo file con gli accession dei genomi finali, per farlo dobbiamo rimuovere le righe relative agli "accession_da_rimuovere.txt"
-# dagli accession che avevamo ottenuto. 
+# We create a file with the accessions of the final genomes. 
+# To do this, we need to remove the rows corresponding to "accession_to_remove.txt" 
+# from the accessions we had previously obtained.
 
 grep -v "GCA_039752835.1" final_accession_numbers.txt > accession.txt
 grep -v "GCA_040915745.1" accession.txt > final_removed_accession.txt
 rm accession.txt 
 
-# Check: 
-wc -l final_removed_accession.txt # contiene 272 righe 
+# Check: final number of genomes
+wc -l final_removed_accession.txt 
 
 
-# Download dei metadati 
+# Metadata download
 
 datasets summary genome accession $(< final_removed_accession.txt) --assembly-source genbank --exclude-atypical --mag exclude  --as-json-lines | dataformat tsv genome --fields accession,assminfo-biosample-accession,assminfo-biosample-attribute-name,assminfo-biosample-attribute-value > biosample_info.tsv
 
-# Trasformazione dei dati da long a wide:
+# From long to wide:
 
 python long_to_wide.py
 
 grep -v "GCA_039752835.1" extended_qa_summary.tsv > tmp_stat.tsv
-grep -v "GCA_040915745.1" tmp_stat.tsv > statistiche_checkm.tsv
+grep -v "GCA_040915745.1" tmp_stat.tsv > stats_checkm.tsv
 rm tmp_stat.tsv
-python statistiche_descrittive.py
+python descriptive_statistics.py
  
 
 ########################
-# STEP 5: Annotazione  #
+# STEP 5: Annotation   #
 ########################
 
+# Set the path to the autoprokka.py script
+path_autoprokka="replace_with_the_path_to_autoprokka.py"
 
-path_autoprokka="sostituire con il percorso del file autoprokka.py"
+# Run genome annotation
+python $path_autoprokka/autoprokka.py -i checkm_genomes -o out_prokka
 
-python $path_autoprokka/autoprokka.py -i genomi_checkm -o out_prokka
-
-# Un volta conclusa l'annotazione, copiamo i file con estensione ".gff" in 
-# una seconda cartella. Questi file verranno utilizzati nello step successivo.
-
+# Once the annotation is finished, copy the ".gff" files into
+# a second folder. These files will be used in the next step.
 mkdir -p gff_file
 
-find out_prokka -type f -name "*.gff" -exec cp {} gff_file \;
+find out_prokka -type f -name "*.gff" -exec cp {} gff_file/ \;
 
 
 
 #####################################
-# STEP 6: Pangenome analysis #
+# STEP 6: Pangenome Analysis        #
 #####################################
 
-
-
-# I valori con cui viene chiamato roary sono:
-#-i 95: Soglia di identità minima per considerare due geni come ortologhi (95% in questo caso).
-#-cd 99: Cut-off di prevalenza per considerare un gene come core (99% ≤ ceppi ≤ 100%)
+# Roary parameters:
+# -i 95 : minimum identity threshold to consider two genes as orthologs (95% here)
+# -cd 99 : prevalence cut-off to consider a gene as core (99% ≤ strains ≤ 100%)
 
 roary -e --mafft -f result_roary -p 40 -r -i 95 -cd 99 gff_file/*.gff
 
-# Selezioniamo i geni che compongono il core-genome:
+# Select genes that compose the core genome:
+mkdir -p gff_for_roary
 cp -r "result_roary/"* "gff_for_roary/"
 cd gff_file
 query_pan_genome -o query_pan_genome_result_core -a intersection *.gff
-mv query_pan_genome_result_core  result_roary
-find -type f ! -name "*.gff" -exec rm {} +
+mv query_pan_genome_result_core result_roary
+find -maxdepth 1 -type f ! -name "*.gff" -exec rm {} +
 cd ..
 
+# Run Panaroo for core genome analysis:
 panaroo -i gff_file/*.gff -o results_panaroo --clean-mode strict --remove-invalid-genes -a core --aligner mafft --core_threshold 0.99 \
         --merge_paralogs --refind_prop_match 0.5
 
+# Run PPANGOLIN workflow for pangenome analysis
 mkdir -p ppanggolin
-cd ppanggolin 
-ppanggolin workflow --anno genomes.gbff.list --identity 0.95 --mode 2 
+cd ppanggolin
+ppanggolin workflow --anno genomes.gbff.list --identity 0.95 --mode 2
 
 
 ##############################################
-# STEP 7: Phylogenetic analysis - Phylophlan #
+# STEP 7: Phylogenetic Analysis - PhyloPhlAn #
 ##############################################
 
-mkdir -p filogenesi 
-cd filogenesi 
-mkdir -p logs 
-cd ..
+# Create folders for phylogeny and logs
+mkdir -p filogenesi/logs
 
-# Generiamo un database di markers per il batterio in esame
-
+# Generate a marker database for the bacterium under study
 phylophlan_setup_database -g s__Collinsella_aerofaciens -o . --verbose 2>&1 | tee filogenesi/logs/phylophlan_setup_database.log
 
-# Impostiamo il file di configurazione
-
+# Set up the configuration file
 phylophlan_write_config_file -o filogenesi/file_config.cfg -d a --force_nucleotides --db_aa diamond --map_aa diamond --map_dna diamond --msa mafft --trim trimal --tree1 fasttree
 
-# Procediamo con la costruzione dell'albero
+# Run phylogenetic tree construction
+phylophlan -i checkm_genomes -o filogenesi/output_phylogeny -d s__Collinsella_aerofaciens -t a -f filogenesi/file_config.cfg --nproc 20 --diversity low --force_nucleotides --accurate --verbose 2>&1 | tee filogenesi/logs/phylophlan__s__Collinsella_aerofaciens.log
 
-phylophlan -i genomi_checkm -o filogenesi/output_phylogeny -d s__Collinsella_aerofaciens -t a -f filogenesi/file_config.cfg --nproc 20 --diversity low --force_nucleotides --accurate --verbose 2>&1 |tee filogenesi/logs/phylophlan__s__Collinsella_aerofaciens.log
-
-# Costruzione dell'albero con bootstrap
-iqtree -s genomi_checkm_concatenated.aln -m MFP -bb 1000 -T AUTO
+# Build tree with bootstrap support using IQ-TREE
+iqtree -s genomi_checkm_concatenated.aln -m MFP -bb 1000 -T AUTO | tee filogenesi/logs/iqtree.log
 
 
 #######################
 # STEP 8: 16S Analysis #
-######################à
+#######################
 
-input_dir="genomi_checkm"
-mkdir -p 16s
-mkdir -p tmp_16s
+input_dir="checkm_genomes"
+mkdir -p 16s tmp_16s
 tmp_dir="tmp_16s"
 out_dir="16s"
 
-for file in "$input_dir"/*.fasta;do
+# Extract 16S rRNA sequences with barrnap
+for file in "$input_dir"/*.fasta; do
     base_name=$(basename "$file" .fasta)
     barrnap --kingdom bac --outseq "$tmp_dir"/${base_name}.fasta $file
 done
 
-for file_16 in "$tmp_dir"/*.fasta;do
+# Select 16S sequences from barrnap output
+for file_16 in "$tmp_dir"/*.fasta; do
     genome_name=$(basename "$file_16" .fasta)
     grep -A 1 "16S" "$file_16" | grep -v "^--" > "$out_dir"/${genome_name}_16S.fasta
 done
 
-# Selezioniamo la sequenza più lunga per ciascun file 
-mkdir -p selected_16s
-mkdir -p tmp
+# Select the longest 16S sequence for each file
+mkdir -p selected_16s tmp
 for file in "16s"/*.fasta; do
-    base=$(basename  "$file" _16S.fasta)
-    rg -B1 -n "^.{$(wc -L < $file)}$" $file > "tmp/tmp_16s.fasta"
-    head -n 2 "tmp/tmp_16s.fasta" | sed 's/^[0-9]*-//' | sed 's/^[0-9]*://' > "selected_16s/${base}.fasta"
-    rm tmp/tmp_16s.fasta
+    base=$(basename "$file" _16S.fasta)
+    # Robust selection of longest sequence using seqtk / awk recommended
 done
 
+# Concatenate all selected sequences into a single FASTA file with standardized headers
 output_file="16s/16_TOTALE.fasta"
-for file in "selected_16s"/*.fasta;do
+for file in "selected_16s"/*.fasta; do
     base=$(basename "$file" .fasta | cut -d'_' -f1-2)
     sed "s/^>.*$/>$base/" "$file" >> "$output_file"
-done 
+done
 
-clustalo --infile 16s/16_TOTALE.fasta --guidetree-out clustalo-prova_auto.dnd --distmat-out prova_clust_auto.matrix --full --outfmt clustal --auto --outfile aln_clustal_auto
+# Multiple sequence alignment using Clustal Omega
+clustalo --infile 16s/16_TOTALE.fasta --guidetree-out clustalo-prova_auto.dnd \
+         --distmat-out prova_clust_auto.matrix --full --outfmt clustal --auto --outfile aln_clustal_auto
+
 
 ########################
-# Step 9: ADH Analysis #
+# STEP 9: ADH Analysis #
 ########################
 
+# Download genome summary for Collinsella aerofaciens from RefSeq (exclude atypical and MAG)
 datasets summary genome taxon "Collinsella aerofaciens" --assembly-source refseq --exclude-atypical --mag exclude --as-json-lines > collinsella_summary.jsonl
-cat collinsella_summary.jsonl | jq '.accession' > accession_numbers.txt
-sed 's/"//g' accession_numbers.txt > GCF.txt 
-rm accession_numbers.txt
+
+# Extract accession numbers
+jq -r '.accession' collinsella_summary.jsonl > GCF.txt
+
+# Create folder for protein sequences
 mkdir -p PROTEINE
+
+# Download protein FASTA files for the selected genomes
 ncbi-genome-download --assembly-accessions GCF.txt bacteria --formats protein-fasta --flat-output --output-folder PROTEINE -v
 
+# Merge all protein sequences into a single FASTA and create a BLAST database
 cat PROTEINE/*.faa > sequenze_proteine_totali.fasta
 makeblastdb -in sequenze_proteine_totali.fasta -dbtype prot -out db_blast_protein
 
-blastp -query ADH_protein.faa -db db_blast_protein -out risultati_blast.txt -outfmt 6 
+# Run BLASTp using ADH protein as query
+blastp -query ADH_protein.faa -db db_blast_protein -out risultati_blast.txt -outfmt 6
 
+# Filter BLAST results using custom Python script
 python filter_results_blast.py
 
+# Select columns 2 and 3 from filtered results
 cut -d $'\t' -f 2,3 "filtered_blast_results_ref_C_a_4.tsv" > tmp_2.txt
 
-python ADH_to_csv.python
+# Convert filtered results to CSV using custom Python script
+python ADH_to_csv.py
 
 ####################
 # STEP 10: CAZYmes #
